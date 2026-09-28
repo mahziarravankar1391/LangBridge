@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LangBridge - سامانه آموزش زبان انگلیسی</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌉</text></svg>">
+</head>
+<body>
+  <nav class="navbar" id="navbar"></nav>
+  <main id="app"></main>
+  <script src="js/storage.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/quiz.js"></script>
+  <script src="js/flashcards.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/admin.js"></script>
+  <script src="js/leaderboard.js"></script>
+  <script>
+    // توابع پروفایل و پشتیبان‌گیری
+    function initProfile() {
+      const user = LBAuth.getCurrentUser();
+      if (!user) return;
+      document.getElementById('profile-content').innerHTML = `
+        <div class="container" style="padding-top:100px">
+          <div class="card" style="max-width:600px;margin:0 auto">
+            <h2 style="margin-bottom:1.5rem">ویرایش پروفایل</h2>
+            <form onsubmit="return saveProfile(event)">
+              <div class="form-group">
+                <label>نام و نام خانوادگی</label>
+                <input type="text" id="profile-name" value="${user.name}" required>
+              </div>
+              <div class="form-group">
+                <label>پایه تحصیلی</label>
+                <select id="profile-grade">
+                  <option value="7" ${user.grade === 7 ? 'selected' : ''}>هفتم</option>
+                  <option value="8" ${user.grade === 8 ? 'selected' : ''}>هشتم</option>
+                  <option value="9" ${user.grade === 9 ? 'selected' : ''}>نهم</option>
+                </select>
+              </div>
+              <button type="submit" class="btn btn-primary">ذخیره تغییرات</button>
+            </form>
+            <hr style="margin:1.5rem 0;border:none;border-top:1px solid var(--border)">
+            <h3 style="margin-bottom:1rem">تغییر رمز عبور</h3>
+            <form onsubmit="return changePassword(event)">
+              <div class="form-group">
+                <label>رمز عبور فعلی</label>
+                <input type="password" id="old-password" required>
+              </div>
+              <div class="form-group">
+                <label>رمز عبور جدید</label>
+                <input type="password" id="new-password" required minlength="8">
+              </div>
+              <button type="submit" class="btn btn-warning">تغییر رمز</button>
+            </form>
+            <hr style="margin:1.5rem 0;border:none;border-top:1px solid var(--border)">
+            <h3 style="margin-bottom:1rem;color:var(--danger)">منطقه خطر</h3>
+            <button class="btn btn-danger" onclick="deleteAccount()">حذف حساب کاربری</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function saveProfile(e) {
+      e.preventDefault();
+      const name = document.getElementById('profile-name').value.trim();
+      const grade = parseInt(document.getElementById('profile-grade').value);
+      LBAuth.updateProfile({ name, grade });
+      LBApp.updateNavbar();
+      return false;
+    }
+
+    async function changePassword(e) {
+      e.preventDefault();
+      const oldPass = document.getElementById('old-password').value;
+      const newPass = document.getElementById('new-password').value;
+      const result = await LBAuth.changePassword(oldPass, newPass);
+      if (result.success) {
+        LBApp.showToast('رمز عبور تغییر کرد', 'success');
+      } else {
+        LBApp.showToast(result.error, 'error');
+      }
+      return false;
+    }
+
+    async function deleteAccount() {
+      if (!confirm('آیا از حذف حساب کاربری مطمئن هستید؟ این عمل قابل بازگشت نیست!')) return;
+      const password = prompt('رمز عبور خود را وارد کنید:');
+      if (!password) return;
+      const result = await LBAuth.deleteAccount(password);
+      if (result.success) {
+        LBApp.showToast('حساب کاربری حذف شد', 'info');
+        LBApp.navigate('home');
+      } else {
+        LBApp.showToast(result.error, 'error');
+      }
+    }
+
+    function initBackup() {
+      const user = LBAuth.getCurrentUser();
+      if (!user) return;
+      document.getElementById('backup-content').innerHTML = `
+        <div class="container" style="padding-top:100px">
+          <div class="card" style="max-width:600px;margin:0 auto">
+            <h2 style="margin-bottom:1.5rem">پشتیبان‌گیری و بازیابی</h2>
+            <div style="margin-bottom:1.5rem">
+              <h3 style="margin-bottom:0.5rem">📤 خروجی گرفتن</h3>
+              <p style="color:var(--text-secondary);margin-bottom:1rem">تمام اطلاعات خود را در یک فایل JSON ذخیره کنید</p>
+              <button class="btn btn-primary" onclick="exportData()">دانلود فایل پشتیبان</button>
+            </div>
+            <hr style="margin:1.5rem 0;border:none;border-top:1px solid var(--border)">
+            <div>
+              <h3 style="margin-bottom:0.5rem">📥 بازیابی</h3>
+              <p style="color:var(--text-secondary);margin-bottom:1rem">فایل پشتیبان قبلی را وارد کنید</p>
+              <input type="file" id="backup-file" accept=".json" style="margin-bottom:1rem">
+              <button class="btn btn-success" onclick="importData()">بازیابی اطلاعات</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function exportData() {
+      const user = LBAuth.getCurrentUser();
+      const data = LBStorage.exportAll(user.id);
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'langbridge-backup-' + new Date().toISOString().split('T')[0] + '.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      LBApp.showToast('فایل پشتیبان دانلود شد', 'success');
+    }
+
+    function importData() {
+      const user = LBAuth.getCurrentUser();
+      const fileInput = document.getElementById('backup-file');
+      if (!fileInput.files.length) {
+        LBApp.showToast('لطفاً یک فایل انتخاب کنید', 'warning');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const result = LBStorage.importAll(user.id, e.target.result);
+        if (result.success) {
+          LBApp.showToast('اطلاعات با موفقیت بازیابی شد', 'success');
+        } else {
+          LBApp.showToast(result.error, 'error');
+        }
+      };
+      reader.readAsText(fileInput.files[0]);
+    }
+  </script>
+</body>
+</html>
